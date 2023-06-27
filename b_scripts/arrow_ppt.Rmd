@@ -1,0 +1,711 @@
+---
+title: "Handling Big Data with Arrow"
+author: "R version 4.1.1"
+date: "June 27, 2023"
+output:
+  slidy_presentation: default
+  ioslides_presentation: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+#https://codingclubuc3m.rbind.io/post/2019-09-24/
+
+sapply(c('tidyverse', 
+         'dplyr', 
+         'tidytext', 
+         'stringr', 
+         'stringi', 
+         'ngram', 
+         'textrank', 
+         'purrr', 
+         'odbc', 
+         'matrixStats', 
+         'readxl', 
+         'lubridate', 
+         'readr',
+         'zoo', 
+         'reshape2', 
+         'scales', 
+         'foreign', 
+         'janitor', 
+         'ggpubr', 
+         'mgcv', 
+         'here', 
+         'data.table', 
+         'tictoc', 
+         'fs',
+         'collapse',
+         'microbenchmark',
+         'arrow',
+         'knitr'), 
+       require, 
+       character.only = TRUE)
+
+#source(here("scripts", "01_create_df.R"))
+
+# create an easy negate function
+`%ni%` <- Negate(`%in%`)
+
+select <- dplyr::select
+
+
+df = fread("U:/Braeden/test_projs/arrow_example/data/dummy_df.csv")
+
+ha_xwalk <- tibble(surv_ha = c(1:5),
+                   surv_name = c("IHA", "FHA", "VCHA", "VIHA", "NHA"))
+
+
+
+```
+
+## Introduction
+
+**Big Data Problems in R:**
+
+- R does all it's work in memory, which is limited by a PC's RAM  
+- Overloading R memory can lead to frequent crashing  
+- Reading, Writing, and Querying large datasets is time consuming 
+- Large data outputs take up server space
+
+<br>
+
+**Big Data Solutions in R: Apache 'Arrow'**
+
+Apache Arrow is a cross-language development platform for in-memory and larger-than-memory data.   
+  
+*Key features:*
+
+*- Reading and writing data with Arrow Parquet files*     
+
+*- Analyzing in-memory and larger-than-memory datasets using Arrow tables*  
+
+
+``` {r, echo=TRUE, eval=FALSE}
+library(arrow)
+```
+  
+
+## Reading and Writing Data: Arrow Parquet Files
+
+**What are Parquet files?**  
+
+Parquet is a storage format designed for maximum space efficiency.   
+
+
+**Advantages**
+
+- Saves data in columnar format, which is more efficient than row-based files like CSV
+- Can be compressed, requiring minimal storage on the server
+- Can be read and written by other programs (eg. Python)
+  
+**Disadvantages**
+
+- Not human readable (stored in binary)
+- Minimal/no benefit to using this format when working with small datasets
+
+## Dummy Data for these exercises
+
+<br>
+  
+**Dimensions:** 
+
+```{r df_dim, echo=FALSE}
+
+opts_chunk$set(cache=TRUE)
+
+temp <- data.frame("Columns" = ncol(df),
+                 "Rows" = format(nrow(df), big.mark = ","),
+                 row.names = "Dummy df")
+
+temp %>%
+  kable()
+
+```
+  
+<br>  
+**Structure:** 
+
+```{r df_head, echo=FALSE}
+
+opts_chunk$set(cache=TRUE)
+
+kable(head(df[, 1:15], 4))
+
+
+```
+
+
+## Reading Data: Comparing Parquet to other methods
+
+
+:::: {style="display: flex; justify-content: space-evenly;"}
+
+::: {}
+
+*Example Code:*
+```{r compare_load, echo=TRUE, eval=FALSE}
+
+#Tidyverse CSV File
+read_csv(here("data", "dummy_df.csv"))
+
+#Data Table CSV File
+fread(here("data", "dummy_df.csv"))
+
+#RDS File
+readRDS(here("data", "dummy_df.RDS"))
+
+#Parquet File
+read_parquet(here("data", "dummy_df.parquet"))
+
+
+```
+
+:::
+
+::: {} 
+
+
+*Mean Read Time:*
+```{r compare_load2, echo=FALSE, message=FALSE}
+
+
+opts_chunk$set(cache=TRUE)
+
+qTBL(microbenchmark(`Tidy CSV` = read_csv(here("data", "dummy_df.csv")),
+                    `DT CSV` = fread(here("data", "dummy_df.csv")),
+               RDS = readRDS(here("data", "dummy_df.RDS")),
+               Parquet = read_parquet(here("data", "dummy_df.parquet")),
+               times = 5,
+               unit = "seconds")) %>%
+        group_by(expr) %>%
+        summarise(Seconds = mean(time)) %>%
+        ungroup() %>%
+        select(`File Type` = expr,
+               Seconds) %>%
+        mutate(Seconds = Seconds*1e-9) %>%
+  kable()
+
+
+```
+:::
+
+::::
+
+
+## Writing Data: Comparing Parquet to other file types
+
+:::: {style="display: flex; justify-content: space-evenly;"}
+
+::: {}
+
+
+*Example Code:*
+```{r compare_saves, echo=TRUE, eval=FALSE}
+
+#Tidyverse CSV file
+write_csv(df, here("data", "dummy_df.csv"))
+
+#Data Table CSV file
+fwrite(df, here("data", "dummy_df.csv"))
+
+#RDS File
+saveRDS(df, here("data", "dummy_df.RDS"))
+
+#Parquet File
+write_parquet(df, here("data", "dummy_df.parquet"))
+
+#Compressed Parquet File
+write_parquet(df, here("data", "dummy_df_comp.parquet"),
+              compression = "gzip")
+
+
+
+```
+
+:::
+
+::: {}
+
+*Mean Write Time:*
+```{r compare_saves2, echo=FALSE}
+
+#https://css-tricks.com/snippets/css/a-guide-to-flexbox/
+#https://bookdown.org/yihui/rmarkdown-cookbook/multi-column.html
+#https://stackoverflow.com/questions/50277529/r-notebook-place-knitrkable-tables-side-by-side
+
+opts_chunk$set(cache=TRUE)
+
+
+qTBL(microbenchmark::microbenchmark(`Tidy CSV` = write_csv(df, here("data", "dummy_df.csv")),
+                                    `DT CSV` = fwrite(df, here("data", "dummy_df.csv")),
+                                       RDS = saveRDS(df, here("data", "dummy_df.RDS")),
+                                       Parquet = write_parquet(df, here("data", "dummy_df.parquet")),
+                                       `Parquet compressed` = write_parquet(df, here("data", "dummy_df_comp.parquet"),
+                                                                            compression = "gzip"),
+                                       times = 1,
+                                       unit = "seconds")) %>%
+        group_by(expr) %>%
+        summarise(Seconds = mean(time)) %>%
+        ungroup() %>%
+        select(`File Type` = expr,
+               Seconds) %>%
+        mutate(Seconds = Seconds*1e-9) %>% 
+  kable()
+
+```
+  
+<br>
+  
+*File Size:*
+```{r compare_saves3, echo=FALSE}
+
+fs::dir_info(here("data")) %>%
+  qTBL() %>%
+  mutate(size = gsub("M", "", size)) %>%
+  select(Path = path, `File Size (mb)` = size) %>%
+  mutate(Path = str_remove(Path, "U:/Braeden/test_projs/arrow_example/data/"),
+         order = case_when(str_detect(Path, "csv") ~ 1,
+                           str_detect(Path, "RDS") ~ 2,
+                           str_detect(Path, "df.parquet") ~ 3,
+                           str_detect(Path, "comp.parquet") ~ 4)) %>%
+  arrange(order) %>%
+  select(-order) %>%
+  kable()
+
+
+
+
+
+```
+
+:::
+
+::::
+
+
+## Analyzing Data: Arrow Tables
+
+**What are Arrow tables?**  
+
+An Arrow table is a two-dimensional dataset with chunked arrays for columns, together with a schema providing field names.  
+
+
+**Advantages**
+
+- Requires virtually no R memory to have in the environment
+- Parquet files can be read into R as an Arrow table
+- Can be turned into a dataframe or data table at any time
+- Any data frame or data table can be converted to an arrow table at any time
+- Can query these tables prior to converting to a data frame or data table
+   
+**Disadvantages**
+
+- Cannot view the table without pulling it into memory
+- Querying is limited to equivalent code available in kernel (eg. no > or < functions)
+
+## R Memory: Comparing Arrow table to data frame
+
+
+:::: {style="display: flex; justify-content: space-evenly"}
+
+::: {}
+
+
+*Example Code:*
+```{r compare_memory, echo=TRUE, eval=FALSE}
+
+
+opts_chunk$set(cache=TRUE)
+
+#Read in Parquet file as Arrow table
+df_arrow <- read_parquet(here("data", "dummy_df.parquet"),
+                         as_data_frame = FALSE)
+
+#Convert to dataframe
+df_arrow <- df_arrow %>%
+  collect()
+
+#Convert back to Arrow table
+df_arrow <- arrow_table(df_arrow)
+
+
+```
+
+:::
+
+::: {} 
+
+*R Memory Allocation:*
+```{r compare_memory2, echo=FALSE}
+
+df_arrow <- arrow_table(df)
+
+data.frame("Data.Type" = c("Data frame", "Arrow table"),
+           "Object.Size" = c(format(object.size(df), units = "MB"), format(object.size(df_arrow), units = "MB"))) %>%
+  select(`Data Type` = Data.Type,
+         `Object Size` = Object.Size) %>%
+  #arrange(`Data Type`) %>%
+  kable()
+
+
+```
+
+:::
+::::
+
+## Querying: Comparing tidy, data table, and arrow
+
+:::: {style="display: flex; justify-content: space-evenly;"}
+
+::: {}
+
+*Query:*
+
+- Group by HA
+- Calculate average age  
+
+
+```{r compare_queries, echo=TRUE, eval=FALSE}
+
+#Tidyverse Method
+df %>%
+  group_by(surv_ha) %>%
+  summarise(mean_age = mean(age)) %>%
+  ungroup()
+
+#Data Table Method                                    
+df_dt[,
+      .(mean_age = mean(age)),
+      by = surv_ha]
+                       
+#Arrow and Tidyverse Method           
+df_arrow %>%
+  group_by(surv_ha) %>%
+  summarise(mean_age = mean(age))
+
+```
+
+:::
+
+::: {} 
+
+
+*Mean Query Time:*
+```{r compare_queries2, echo=FALSE}
+
+
+opts_chunk$set(cache=TRUE)
+
+df_arrow <- arrow_table(df)
+
+df_dt <- qDT(df)
+
+
+qTBL(microbenchmark::microbenchmark(`Tidy Table` = df %>%
+                                    group_by(surv_ha) %>%
+                                    summarise(mean_age = mean(age)) %>%
+                                    ungroup(),
+                                    
+                                  `Data Table` = df_dt[
+                                    ,
+                                    .(mean_age = mean(age)),
+                                    by = surv_ha
+                                  ],
+                                  
+                                  `Arrow Table` = df_arrow %>%
+                                    group_by(surv_ha) %>%
+                                    summarise(mean_age = mean(age)),
+                                  
+                                       times = 5,
+                                       unit = "seconds")) %>%
+        group_by(expr) %>%
+        summarise(Seconds = mean(time)) %>%
+        ungroup() %>%
+        select(`File Type` = expr,
+               Seconds) %>%
+        mutate(Seconds = Seconds*1e-9) %>%
+  #arrange(Seconds) %>%
+  kable()
+
+
+
+```
+
+
+:::
+::::
+
+
+## Querying: Comparing tidy, data table, and arrow
+
+:::: {style="display: flex; justify-content: space-evenly;"}
+
+::: {}
+
+*Query:*
+
+- Left join on HA crosswalk file   
+
+
+```{r compare_merge, echo=TRUE, message=FALSE, eval=FALSE}
+
+#Tidyverse Method
+df %>%
+  left_join(ha_xwalk)
+
+#Data Table Method                 
+df_dt[
+  setDT(ha_xwalk), on = .(surv_ha)]
+
+#Arrow and Tidyverse Method                
+df_arrow %>%
+  left_join(ha_xwalk)
+
+
+```
+
+:::
+
+::: {} 
+
+
+*Mean Query Time:*
+```{r compare_merge2, echo=FALSE, message=FALSE}
+
+
+opts_chunk$set(cache=TRUE)
+
+df_arrow <- arrow_table(df)
+
+df_dt <- qDT(df)
+
+
+qTBL(microbenchmark::microbenchmark(`Tidy Table` = df %>%
+                                                          left_join(ha_xwalk),
+                                    
+                                  `Data Table` = df_dt[
+                                                      setDT(ha_xwalk), on = .(surv_ha)
+                                                      ],
+                                  
+                                  `Arrow Table` = df_arrow %>%
+                                                    left_join(ha_xwalk),
+                                  
+                                       times = 5,
+                                       unit = "seconds")) %>%
+        group_by(expr) %>%
+        summarise(Seconds = mean(time)) %>%
+        ungroup() %>%
+        select(`File Type` = expr,
+               Seconds) %>%
+        mutate(Seconds = Seconds*1e-9) %>%
+  #arrange(Seconds) %>%
+  kable()
+
+
+
+```
+
+:::
+
+::::
+
+
+
+## Querying: Comparing tidy, data table, and arrow
+
+:::: {style="display: flex; justify-content: space-evenly;"}
+
+::: {}
+
+*Query:*
+
+- Read, filter, and select columns  
+
+
+```{r compare_query, echo=TRUE, message=FALSE, eval=FALSE}
+
+#Tidyverse Method
+read_csv(here("data", "dummy_df.csv")) %>%
+  filter(surv_ha %in% c("1", "2", "3")) %>%
+  select(1:6)
+
+#Data Table Method                 
+fread(here("data", "dummy_df.csv"), data.table = TRUE,
+      select = c("id", "outcome", "age", "sex", "surv_ha", "surv_date"))[
+  surv_ha %in% c("1", "2", "3")
+  ]
+
+#Arrow and Tidyverse Method                
+read_parquet(here("data", "dummy_df_comp.parquet"),
+             as_data_frame = FALSE)  %>%
+  filter(surv_ha %in% c("1", "2", "3")) %>%
+  select(1:6) %>%
+  collect()
+
+```
+
+:::
+
+::: {} 
+
+
+*Mean Query Time:*
+```{r compare_query2, echo=FALSE, message=FALSE}
+
+
+opts_chunk$set(cache=TRUE)
+
+df_arrow <- arrow_table(df)
+
+df_dt <- qDT(df)
+
+
+qTBL(microbenchmark::microbenchmark(`Tidy CSV` = read_csv(here("data", "dummy_df.csv")) %>%
+                                      filter(surv_ha %in% c("1", "2", "3")) %>%
+                                      select(1:6),
+                                    
+                                    `DT CSV` = fread(here("data", "dummy_df.csv"), data.table = TRUE,
+                                                     select = c("id", "outcome", "age", "sex", "surv_ha", "surv_date"))[
+                                                       surv_ha %in% c("1", "2", "3")
+                                                       ],
+                                    
+                                    Arrow = read_parquet(here("data", "dummy_df_comp.parquet"),
+                                                         as_data_frame = FALSE)  %>%
+                                      filter(surv_ha %in% c("1", "2", "3")) %>%
+                                      select(1:6) %>%
+                                      collect(),
+                                  
+                                       times = 5,
+                                       unit = "seconds")) %>%
+        group_by(expr) %>%
+        summarise(Seconds = mean(time)) %>%
+        ungroup() %>%
+        select(`File Type` = expr,
+               Seconds) %>%
+        mutate(Seconds = Seconds*1e-9) %>%
+  #arrange(Seconds) %>%
+  kable()
+
+
+
+```
+
+:::
+
+::::
+
+
+## BONUS: Using Collapse to convert dataframes to tibbles, data tables, or matrices
+
+:::: {style="display: flex; justify-content: space-evenly;"}
+
+::: {}
+
+```{r collapse, echo=TRUE, eval=FALSE}
+
+library(collapse)
+
+```
+
+```{r crosswalk, echo=FALSE}
+
+data.frame("Common Methods" = c("as_tibble", "setDT", "as.matrix"),
+           "Collapse Methods" = c("qTBL", "qDT", "qM")) %>%
+  select(`Common Method` = Common.Methods,
+         `Collapse Method` = Collapse.Methods) %>%
+  kable()
+
+```
+
+
+:::
+
+::: {}
+
+*Mean Coversion Time:*
+```{r compare_collapse, echo=FALSE}
+
+
+opts_chunk$set(cache=TRUE)
+
+qTBL(microbenchmark::microbenchmark(`as_tibble` = as_tibble(df),
+                                    `qTBL` = qTBL(df),
+                                    `setDT` = setDT(df),
+                                    `qDT` = qDT(df),
+                                    `as.matrix` = as.matrix(df),
+                                    `qM` = qM(df),
+                                    times = 5,
+                                    unit = "seconds")) %>%
+        group_by(expr) %>%
+        summarise(Seconds = mean(time)) %>%
+        ungroup() %>%
+        select(`Conversion Method` = expr,
+               Seconds) %>%
+        mutate(Seconds = Seconds*1e-9) %>%
+  kable()
+
+
+
+```
+
+:::
+::::
+
+
+## Key Takeaways
+
+
+- Parquet files are efficient and functional for big data
+- Parquet files can be directly read into R as Arrow tables
+- Arrow tables do not use R memory
+- Arrow tables can be queried before being called into R memory
+- Dataframes can be converted to arrow tables and vice versa     
+- In some cases querying with Arrow is faster, particularly complicated tasks like joins
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+**Note for Central Analytics Platform Users:**   
+- The Arrow table functions are only available on R versions >= 4.0.2   
+- To install Arrow on R versions < 4.0.2 install without compilation, if issues persist install package 'Rcpp' v1.0.1  
+
+## Resources
+
+[Arrow Information Page](https://arrow.apache.org/docs/r/)  
+
+[Arrow Cheat Sheet](https://raw.githubusercontent.com/rstudio/cheatsheets/main/arrow.pdf)  
+
+[Collapse Cheat Sheet](https://raw.githubusercontent.com/rstudio/cheatsheets/main/collapse.pdf)   
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+**Note for Central Analytics Platform Users:**  
+- The Arrow table functions are only available on R versions >= 4.0.2  
+- To install Arrow on R versions < 4.0.2 install without compilation, if issues persist install package 'Rcpp' v1.0.1
+
