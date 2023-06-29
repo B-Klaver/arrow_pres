@@ -3,7 +3,8 @@ title: "Handling Big Data with Arrow"
 author: "R version 4.1.1"
 date: "June 27, 2023"
 output:
-  slidy_presentation: default
+  slidy_presentation: 
+    css: styles.css
   ioslides_presentation: default
 ---
 
@@ -43,7 +44,7 @@ sapply(c('tidyverse',
        require, 
        character.only = TRUE)
 
-#source(here("scripts", "01_create_df.R"))
+#source(here("b_scripts", "01_create_dummy_df.R"))
 
 # create an easy negate function
 `%ni%` <- Negate(`%in%`)
@@ -51,7 +52,7 @@ sapply(c('tidyverse',
 select <- dplyr::select
 
 
-df = fread("U:/Braeden/test_projs/arrow_example/data/dummy_df.csv")
+df <- fread(here("a_data", "dummy_df.csv"))
 
 ha_xwalk <- tibble(surv_ha = c(1:5),
                    surv_name = c("IHA", "FHA", "VCHA", "VIHA", "NHA"))
@@ -140,31 +141,30 @@ kable(head(df[, 1:15], 4))
 ## Reading Data: Comparing Parquet to other methods
 
 
-:::: {style="display: flex; justify-content: space-evenly;"}
 
-::: {}
+<div class="column">
 
 *Example Code:*
 ```{r compare_load, echo=TRUE, eval=FALSE}
 
 #Tidyverse CSV File
-read_csv(here("data", "dummy_df.csv"))
+read_csv(here("a_data", "dummy_df.csv"))
 
 #Data Table CSV File
-fread(here("data", "dummy_df.csv"))
+fread(here("a_data", "dummy_df.csv"))
 
 #RDS File
-readRDS(here("data", "dummy_df.RDS"))
+readRDS(here("a_data", "dummy_df.RDS"))
 
 #Parquet File
-read_parquet(here("data", "dummy_df.parquet"))
+read_parquet(here("a_data", "dummy_df.parquet"))
 
 
 ```
 
-:::
-
-::: {} 
+</div>
+  
+<div class="column">
 
 
 *Mean Read Time:*
@@ -173,10 +173,10 @@ read_parquet(here("data", "dummy_df.parquet"))
 
 opts_chunk$set(cache=TRUE)
 
-qTBL(microbenchmark(`Tidy CSV` = read_csv(here("data", "dummy_df.csv")),
-                    `DT CSV` = fread(here("data", "dummy_df.csv")),
-               RDS = readRDS(here("data", "dummy_df.RDS")),
-               Parquet = read_parquet(here("data", "dummy_df.parquet")),
+qTBL(microbenchmark(`Tidy CSV` = read_csv(here("a_data", "dummy_df.csv")),
+                    `DT CSV` = fread(here("a_data", "dummy_df.csv")),
+               RDS = readRDS(here("a_data", "dummy_df.RDS")),
+               Parquet = read_parquet(here("a_data", "dummy_df.parquet")),
                times = 5,
                unit = "seconds")) %>%
         group_by(expr) %>%
@@ -189,44 +189,44 @@ qTBL(microbenchmark(`Tidy CSV` = read_csv(here("data", "dummy_df.csv")),
 
 
 ```
-:::
 
-::::
+</div>
+
+<div class="clear"></div>
 
 
 ## Writing Data: Comparing Parquet to other file types
 
-:::: {style="display: flex; justify-content: space-evenly;"}
 
-::: {}
+<div class="column">
 
 
 *Example Code:*
 ```{r compare_saves, echo=TRUE, eval=FALSE}
 
 #Tidyverse CSV file
-write_csv(df, here("data", "dummy_df.csv"))
+write_csv(df, here("a_data", "dummy_df.csv"))
 
 #Data Table CSV file
-fwrite(df, here("data", "dummy_df.csv"))
+fwrite(df, here("a_data", "dummy_df.csv"))
 
 #RDS File
-saveRDS(df, here("data", "dummy_df.RDS"))
+saveRDS(df, here("a_data", "dummy_df.RDS"))
 
 #Parquet File
-write_parquet(df, here("data", "dummy_df.parquet"))
+write_parquet(df, here("a_data", "dummy_df.parquet"))
 
 #Compressed Parquet File
-write_parquet(df, here("data", "dummy_df_comp.parquet"),
+write_parquet(df, here("a_data", "dummy_df_comp.parquet"),
               compression = "gzip")
 
 
 
 ```
 
-:::
+</div>
 
-::: {}
+<div class="column">
 
 *Mean Write Time:*
 ```{r compare_saves2, echo=FALSE}
@@ -238,11 +238,11 @@ write_parquet(df, here("data", "dummy_df_comp.parquet"),
 opts_chunk$set(cache=TRUE)
 
 
-qTBL(microbenchmark::microbenchmark(`Tidy CSV` = write_csv(df, here("data", "dummy_df.csv")),
-                                    `DT CSV` = fwrite(df, here("data", "dummy_df.csv")),
-                                       RDS = saveRDS(df, here("data", "dummy_df.RDS")),
-                                       Parquet = write_parquet(df, here("data", "dummy_df.parquet")),
-                                       `Parquet compressed` = write_parquet(df, here("data", "dummy_df_comp.parquet"),
+qTBL(microbenchmark::microbenchmark(`Tidy CSV` = write_csv(df, here("a_data", "dummy_df.csv")),
+                                    `DT CSV` = fwrite(df, here("a_data", "dummy_df.csv")),
+                                       RDS = saveRDS(df, here("a_data", "dummy_df.RDS")),
+                                       Parquet = write_parquet(df, here("a_data", "dummy_df.parquet")),
+                                       `Parquet compressed` = write_parquet(df, here("a_data", "dummy_df_comp.parquet"),
                                                                             compression = "gzip"),
                                        times = 1,
                                        unit = "seconds")) %>%
@@ -261,11 +261,11 @@ qTBL(microbenchmark::microbenchmark(`Tidy CSV` = write_csv(df, here("data", "dum
 *File Size:*
 ```{r compare_saves3, echo=FALSE}
 
-fs::dir_info(here("data")) %>%
+fs::dir_info(here("a_data")) %>%
   qTBL() %>%
   mutate(size = gsub("M", "", size)) %>%
   select(Path = path, `File Size (mb)` = size) %>%
-  mutate(Path = str_remove(Path, "U:/Braeden/test_projs/arrow_example/data/"),
+  mutate(Path = str_remove(Path, "C:/Users/Braeden/Documents/Projects/arrow_pres/a_data/"),
          order = case_when(str_detect(Path, "csv") ~ 1,
                            str_detect(Path, "RDS") ~ 2,
                            str_detect(Path, "df.parquet") ~ 3,
@@ -280,10 +280,9 @@ fs::dir_info(here("data")) %>%
 
 ```
 
-:::
+</div>
 
-::::
-
+<div class="clear"></div>
 
 ## Analyzing Data: Arrow Tables
 
@@ -308,9 +307,8 @@ An Arrow table is a two-dimensional dataset with chunked arrays for columns, tog
 ## R Memory: Comparing Arrow table to data frame
 
 
-:::: {style="display: flex; justify-content: space-evenly"}
 
-::: {}
+<div class="column">
 
 
 *Example Code:*
@@ -320,7 +318,7 @@ An Arrow table is a two-dimensional dataset with chunked arrays for columns, tog
 opts_chunk$set(cache=TRUE)
 
 #Read in Parquet file as Arrow table
-df_arrow <- read_parquet(here("data", "dummy_df.parquet"),
+df_arrow <- read_parquet(here("a_data", "dummy_df.parquet"),
                          as_data_frame = FALSE)
 
 #Convert to dataframe
@@ -333,14 +331,16 @@ df_arrow <- arrow_table(df_arrow)
 
 ```
 
-:::
+</div>
 
-::: {} 
+<div class="column">
 
 *R Memory Allocation:*
 ```{r compare_memory2, echo=FALSE}
 
-df_arrow <- arrow_table(df)
+df <- qDF(df)
+
+df_arrow <- arrow::arrow_table(df)
 
 data.frame("Data.Type" = c("Data frame", "Arrow table"),
            "Object.Size" = c(format(object.size(df), units = "MB"), format(object.size(df_arrow), units = "MB"))) %>%
@@ -352,14 +352,14 @@ data.frame("Data.Type" = c("Data frame", "Arrow table"),
 
 ```
 
-:::
-::::
+</div>
+
+<div class="clear"></div>
+
 
 ## Querying: Comparing tidy, data table, and arrow
 
-:::: {style="display: flex; justify-content: space-evenly;"}
-
-::: {}
+<div class="column">
 
 *Query:*
 
@@ -387,9 +387,9 @@ df_arrow %>%
 
 ```
 
-:::
+</div>
 
-::: {} 
+<div class="column">
 
 
 *Mean Query Time:*
@@ -398,7 +398,7 @@ df_arrow %>%
 
 opts_chunk$set(cache=TRUE)
 
-df_arrow <- arrow_table(df)
+df_arrow <- arrow::arrow_table(df)
 
 df_dt <- qDT(df)
 
@@ -434,17 +434,16 @@ qTBL(microbenchmark::microbenchmark(`Tidy Table` = df %>%
 ```
 
 
-:::
-::::
+</div>
+
+<div class="clear"></div>
 
 
 ## Querying: Comparing tidy, data table, and arrow
 
-:::: {style="display: flex; justify-content: space-evenly;"}
-
-::: {}
-
-*Query:*
+<div class="column">
+   
+*Query:*  
 
 - Left join on HA crosswalk file   
 
@@ -466,10 +465,9 @@ df_arrow %>%
 
 ```
 
-:::
+</div>
 
-::: {} 
-
+<div class="column">
 
 *Mean Query Time:*
 ```{r compare_merge2, echo=FALSE, message=FALSE}
@@ -477,7 +475,7 @@ df_arrow %>%
 
 opts_chunk$set(cache=TRUE)
 
-df_arrow <- arrow_table(df)
+df_arrow <- arrow::arrow_table(df)
 
 df_dt <- qDT(df)
 
@@ -507,17 +505,15 @@ qTBL(microbenchmark::microbenchmark(`Tidy Table` = df %>%
 
 ```
 
-:::
+</div>
 
-::::
+<div class="clear"></div>
 
 
 
 ## Querying: Comparing tidy, data table, and arrow
 
-:::: {style="display: flex; justify-content: space-evenly;"}
-
-::: {}
+<div class="column">
 
 *Query:*
 
@@ -527,18 +523,18 @@ qTBL(microbenchmark::microbenchmark(`Tidy Table` = df %>%
 ```{r compare_query, echo=TRUE, message=FALSE, eval=FALSE}
 
 #Tidyverse Method
-read_csv(here("data", "dummy_df.csv")) %>%
+read_csv(here("a_data", "dummy_df.csv")) %>%
   filter(surv_ha %in% c("1", "2", "3")) %>%
   select(1:6)
 
 #Data Table Method                 
-fread(here("data", "dummy_df.csv"), data.table = TRUE,
+fread(here("a_data", "dummy_df.csv"), data.table = TRUE,
       select = c("id", "outcome", "age", "sex", "surv_ha", "surv_date"))[
   surv_ha %in% c("1", "2", "3")
   ]
 
 #Arrow and Tidyverse Method                
-read_parquet(here("data", "dummy_df_comp.parquet"),
+read_parquet(here("a_data", "dummy_df_comp.parquet"),
              as_data_frame = FALSE)  %>%
   filter(surv_ha %in% c("1", "2", "3")) %>%
   select(1:6) %>%
@@ -546,9 +542,9 @@ read_parquet(here("data", "dummy_df_comp.parquet"),
 
 ```
 
-:::
+</div>
 
-::: {} 
+<div class="column">
 
 
 *Mean Query Time:*
@@ -557,21 +553,21 @@ read_parquet(here("data", "dummy_df_comp.parquet"),
 
 opts_chunk$set(cache=TRUE)
 
-df_arrow <- arrow_table(df)
+df_arrow <- arrow::arrow_table(df)
 
 df_dt <- qDT(df)
 
 
-qTBL(microbenchmark::microbenchmark(`Tidy CSV` = read_csv(here("data", "dummy_df.csv")) %>%
+qTBL(microbenchmark::microbenchmark(`Tidy CSV` = read_csv(here("a_data", "dummy_df.csv")) %>%
                                       filter(surv_ha %in% c("1", "2", "3")) %>%
                                       select(1:6),
                                     
-                                    `DT CSV` = fread(here("data", "dummy_df.csv"), data.table = TRUE,
+                                    `DT CSV` = fread(here("a_data", "dummy_df.csv"), data.table = TRUE,
                                                      select = c("id", "outcome", "age", "sex", "surv_ha", "surv_date"))[
                                                        surv_ha %in% c("1", "2", "3")
                                                        ],
                                     
-                                    Arrow = read_parquet(here("data", "dummy_df_comp.parquet"),
+                                    Arrow = read_parquet(here("a_data", "dummy_df_comp.parquet"),
                                                          as_data_frame = FALSE)  %>%
                                       filter(surv_ha %in% c("1", "2", "3")) %>%
                                       select(1:6) %>%
@@ -592,16 +588,14 @@ qTBL(microbenchmark::microbenchmark(`Tidy CSV` = read_csv(here("data", "dummy_df
 
 ```
 
-:::
+</div>
 
-::::
+<div class="clear"></div>
 
 
 ## BONUS: Using Collapse to convert dataframes to tibbles, data tables, or matrices
 
-:::: {style="display: flex; justify-content: space-evenly;"}
-
-::: {}
+<div class="column">
 
 ```{r collapse, echo=TRUE, eval=FALSE}
 
@@ -620,9 +614,9 @@ data.frame("Common Methods" = c("as_tibble", "setDT", "as.matrix"),
 ```
 
 
-:::
+</div>
 
-::: {}
+<div class="column">
 
 *Mean Coversion Time:*
 ```{r compare_collapse, echo=FALSE}
@@ -650,8 +644,9 @@ qTBL(microbenchmark::microbenchmark(`as_tibble` = as_tibble(df),
 
 ```
 
-:::
-::::
+</div>
+
+<div class="clear"></div>
 
 
 ## Key Takeaways
