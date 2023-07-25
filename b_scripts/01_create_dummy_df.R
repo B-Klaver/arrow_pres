@@ -2,7 +2,7 @@
 #
 # Author: Braeden Klaver
 # Date: 2023-06-27
-# Version: 4.1.1
+# Version: 4.0.5
 #
 #######################################
 
@@ -116,5 +116,9 @@ df <- new_vars(n, n_2, cases, controls, 25)
 
 rm(cases, controls)
 
-fwrite(df, here("data", "dummy_df.csv"))
+fwrite(df, here("a_data", "dummy_df.csv"))
+
+write_parquet(df, here("a_data", "dummy_df.parquet"))
+
+write_rds(df, here("a_data", "dummy_df.RDS"))
 

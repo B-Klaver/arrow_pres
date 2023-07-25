@@ -1,6 +1,6 @@
 ---
 title: "Handling Big Data with Arrow"
-author: "R version 4.1.1"
+author: "R version 4.0.5"
 date: "June 27, 2023"
 output:
   slidy_presentation: 
@@ -16,26 +16,15 @@ knitr::opts_chunk$set(echo = FALSE)
 sapply(c('tidyverse', 
          'dplyr', 
          'tidytext', 
-         'stringr', 
-         'stringi', 
-         'ngram', 
          'textrank', 
          'purrr', 
-         'odbc', 
-         'matrixStats', 
          'readxl', 
          'lubridate', 
          'readr',
          'zoo', 
-         'reshape2', 
-         'scales', 
-         'foreign', 
          'janitor', 
-         'ggpubr', 
-         'mgcv', 
          'here', 
          'data.table', 
-         'tictoc', 
          'fs',
          'collapse',
          'microbenchmark',
@@ -44,16 +33,18 @@ sapply(c('tidyverse',
        require, 
        character.only = TRUE)
 
-#source(here("b_scripts", "01_create_dummy_df.R"))
+source(here("b_scripts", "01_create_dummy_df.R"))
 
 # create an easy negate function
 `%ni%` <- Negate(`%in%`)
 
+# Because we use plyr we need to set select as the dplyr statement
 select <- dplyr::select
 
-
+# Read the data in
 df <- fread(here("a_data", "dummy_df.csv"))
 
+#Create an HA crosswalk to merge onto our df
 ha_xwalk <- tibble(surv_ha = c(1:5),
                    surv_name = c("IHA", "FHA", "VCHA", "VIHA", "NHA"))
 
@@ -116,11 +107,10 @@ Parquet is a storage format designed for maximum space efficiency.
 
 opts_chunk$set(cache=TRUE)
 
+#Quick highlight of the df
 temp <- data.frame("Columns" = ncol(df),
                  "Rows" = format(nrow(df), big.mark = ","),
-                 row.names = "Dummy df")
-
-temp %>%
+                 row.names = "Dummy df") %>%
   kable()
 
 ```
@@ -132,6 +122,7 @@ temp %>%
 
 opts_chunk$set(cache=TRUE)
 
+#Quick highlight of the df
 kable(head(df[, 1:15], 4))
 
 
@@ -173,6 +164,7 @@ read_parquet(here("a_data", "dummy_df.parquet"))
 
 opts_chunk$set(cache=TRUE)
 
+#Microbenchmark of the different ways to read in data
 qTBL(microbenchmark(`Tidy CSV` = read_csv(here("a_data", "dummy_df.csv")),
                     `DT CSV` = fread(here("a_data", "dummy_df.csv")),
                RDS = readRDS(here("a_data", "dummy_df.RDS")),
@@ -237,7 +229,7 @@ write_parquet(df, here("a_data", "dummy_df_comp.parquet"),
 
 opts_chunk$set(cache=TRUE)
 
-
+#Microbenchmark of the different ways to save data
 qTBL(microbenchmark::microbenchmark(`Tidy CSV` = write_csv(df, here("a_data", "dummy_df.csv")),
                                     `DT CSV` = fwrite(df, here("a_data", "dummy_df.csv")),
                                        RDS = saveRDS(df, here("a_data", "dummy_df.RDS")),
@@ -261,6 +253,7 @@ qTBL(microbenchmark::microbenchmark(`Tidy CSV` = write_csv(df, here("a_data", "d
 *File Size:*
 ```{r compare_saves3, echo=FALSE}
 
+#Show the different file sizes
 fs::dir_info(here("a_data")) %>%
   qTBL() %>%
   mutate(size = gsub("M", "", size)) %>%
@@ -338,15 +331,17 @@ df_arrow <- arrow_table(df_arrow)
 *R Memory Allocation:*
 ```{r compare_memory2, echo=FALSE}
 
+#make the df a data frame
 df <- qDF(df)
 
+#make an arrow table
 df_arrow <- arrow::arrow_table(df)
 
+#Compare the memory load of the tables
 data.frame("Data.Type" = c("Data frame", "Arrow table"),
            "Object.Size" = c(format(object.size(df), units = "MB"), format(object.size(df_arrow), units = "MB"))) %>%
   select(`Data Type` = Data.Type,
          `Object Size` = Object.Size) %>%
-  #arrange(`Data Type`) %>%
   kable()
 
 
@@ -361,7 +356,7 @@ data.frame("Data.Type" = c("Data frame", "Arrow table"),
 
 <div class="column">
 
-*Query:*
+*Query: *
 
 - Group by HA
 - Calculate average age  
@@ -398,11 +393,14 @@ df_arrow %>%
 
 opts_chunk$set(cache=TRUE)
 
+#create an arrow table
 df_arrow <- arrow::arrow_table(df)
 
+#create a data table
 df_dt <- qDT(df)
 
 
+#Microbenchmark of the different queries
 qTBL(microbenchmark::microbenchmark(`Tidy Table` = df %>%
                                     group_by(surv_ha) %>%
                                     summarise(mean_age = mean(age)) %>%
@@ -442,8 +440,9 @@ qTBL(microbenchmark::microbenchmark(`Tidy Table` = df %>%
 ## Querying: Comparing tidy, data table, and arrow
 
 <div class="column">
-   
-*Query:*  
+      
+      
+*Query: *
 
 - Left join on HA crosswalk file   
 
@@ -475,10 +474,14 @@ df_arrow %>%
 
 opts_chunk$set(cache=TRUE)
 
+#create an arrow table
 df_arrow <- arrow::arrow_table(df)
 
+#create a data table
 df_dt <- qDT(df)
 
+
+#Microbenchmark of the different queries
 
 qTBL(microbenchmark::microbenchmark(`Tidy Table` = df %>%
                                                           left_join(ha_xwalk),
@@ -515,7 +518,7 @@ qTBL(microbenchmark::microbenchmark(`Tidy Table` = df %>%
 
 <div class="column">
 
-*Query:*
+*Query: *
 
 - Read, filter, and select columns  
 
@@ -553,11 +556,14 @@ read_parquet(here("a_data", "dummy_df_comp.parquet"),
 
 opts_chunk$set(cache=TRUE)
 
+#create an arrow table
 df_arrow <- arrow::arrow_table(df)
 
+#create a data table
 df_dt <- qDT(df)
 
 
+#Microbenchmark of the different queries
 qTBL(microbenchmark::microbenchmark(`Tidy CSV` = read_csv(here("a_data", "dummy_df.csv")) %>%
                                       filter(surv_ha %in% c("1", "2", "3")) %>%
                                       select(1:6),
@@ -605,6 +611,7 @@ library(collapse)
 
 ```{r crosswalk, echo=FALSE}
 
+#Show the query methods using common ways vs collapse
 data.frame("Common Methods" = c("as_tibble", "setDT", "as.matrix"),
            "Collapse Methods" = c("qTBL", "qDT", "qM")) %>%
   select(`Common Method` = Common.Methods,
@@ -624,6 +631,7 @@ data.frame("Common Methods" = c("as_tibble", "setDT", "as.matrix"),
 
 opts_chunk$set(cache=TRUE)
 
+#Compare the common methods vs collapse methods
 qTBL(microbenchmark::microbenchmark(`as_tibble` = as_tibble(df),
                                     `qTBL` = qTBL(df),
                                     `setDT` = setDT(df),
@@ -669,7 +677,6 @@ qTBL(microbenchmark::microbenchmark(`as_tibble` = as_tibble(df),
 <br>
 <br>
 <br>
-<br>
 
 **Note for Central Analytics Platform Users:**   
 - The Arrow table functions are only available on R versions >= 4.0.2   
@@ -683,7 +690,6 @@ qTBL(microbenchmark::microbenchmark(`as_tibble` = as_tibble(df),
 
 [Collapse Cheat Sheet](https://raw.githubusercontent.com/rstudio/cheatsheets/main/collapse.pdf)   
 
-<br>
 <br>
 <br>
 <br>
