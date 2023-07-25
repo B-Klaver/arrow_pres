@@ -29,11 +29,12 @@ sapply(c('tidyverse',
          'collapse',
          'microbenchmark',
          'arrow',
-         'knitr'), 
+         'knitr',
+         'kableExtra'), 
        require, 
        character.only = TRUE)
 
-source(here("b_scripts", "01_create_dummy_df.R"))
+#source(here("b_scripts", "01_create_dummy_df.R"))
 
 # create an easy negate function
 `%ni%` <- Negate(`%in%`)
@@ -108,10 +109,11 @@ Parquet is a storage format designed for maximum space efficiency.
 opts_chunk$set(cache=TRUE)
 
 #Quick highlight of the df
-temp <- data.frame("Columns" = ncol(df),
+data.frame("Columns" = ncol(df),
                  "Rows" = format(nrow(df), big.mark = ","),
                  row.names = "Dummy df") %>%
   kable()
+
 
 ```
   
@@ -616,7 +618,7 @@ data.frame("Common Methods" = c("as_tibble", "setDT", "as.matrix"),
            "Collapse Methods" = c("qTBL", "qDT", "qM")) %>%
   select(`Common Method` = Common.Methods,
          `Collapse Method` = Collapse.Methods) %>%
-  kable()
+  kable() 
 
 ```
 
@@ -675,8 +677,6 @@ qTBL(microbenchmark::microbenchmark(`as_tibble` = as_tibble(df),
 <br>
 <br>
 <br>
-<br>
-<br>
 
 **Note for Central Analytics Platform Users:**   
 - The Arrow table functions are only available on R versions >= 4.0.2   
@@ -690,8 +690,8 @@ qTBL(microbenchmark::microbenchmark(`as_tibble` = as_tibble(df),
 
 [Collapse Cheat Sheet](https://raw.githubusercontent.com/rstudio/cheatsheets/main/collapse.pdf)   
 
-<br>
-<br>
+[Braeden's Github](https://github.com/B-Klaver)
+
 <br>
 <br>
 <br>
